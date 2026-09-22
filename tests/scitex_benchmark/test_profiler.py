@@ -262,7 +262,7 @@ class TestFunctionProfiler:
         profiler.print_stats("my_func")
         captured = capsys.readouterr()
         # Assert
-        assert "Profile for my_func" in captured.out
+        assert "Profile for my_func" in captured.err
 
     def test_print_stats_single_function_emits_total_calls_line(self, profiler, capsys):
         """print_stats('my_func') prints 'Total calls: 1' for one call."""
@@ -277,7 +277,7 @@ class TestFunctionProfiler:
         profiler.print_stats("my_func")
         captured = capsys.readouterr()
         # Assert
-        assert "Total calls: 1" in captured.out
+        assert "Total calls: 1" in captured.err
 
     def test_print_stats_all_functions_includes_first_function(self, profiler, capsys):
         """print_stats() with no name dumps every profiled function (func1)."""
@@ -297,7 +297,7 @@ class TestFunctionProfiler:
         profiler.print_stats()
         captured = capsys.readouterr()
         # Assert
-        assert "func1" in captured.out
+        assert "func1" in captured.err
 
     def test_print_stats_all_functions_includes_second_function(self, profiler, capsys):
         """print_stats() with no name dumps every profiled function (func2)."""
@@ -317,7 +317,7 @@ class TestFunctionProfiler:
         profiler.print_stats()
         captured = capsys.readouterr()
         # Assert
-        assert "func2" in captured.out
+        assert "func2" in captured.err
 
     def test_get_report_includes_function_name(self, profiled_report):
         """get_report() keys include the profiled function name."""
@@ -433,7 +433,7 @@ class TestProfileBlock:
             sum(range(1000))
         captured = capsys.readouterr()
         # Assert
-        assert "Profile for block 'test_block'" in captured.out
+        assert "Profile for block 'test_block'" in captured.err
 
     def test_profile_block_basic_emits_total_time_line(self, capsys):
         """profile_block prints a 'Total time:' line on exit."""
@@ -443,7 +443,7 @@ class TestProfileBlock:
             sum(range(1000))
         captured = capsys.readouterr()
         # Assert
-        assert "Total time:" in captured.out
+        assert "Total time:" in captured.err
 
     def test_profile_block_with_slow_code_names_the_block(self, capsys):
         """profile_block('slow_block') names the block in its output."""
@@ -453,7 +453,7 @@ class TestProfileBlock:
             time.sleep(0.02)
         captured = capsys.readouterr()
         # Assert
-        assert "slow_block" in captured.out
+        assert "slow_block" in captured.err
 
     def test_profile_block_exception_handling_raises_value_error(self):
         """profile_block re-raises ValueError from its inner block."""
@@ -476,7 +476,7 @@ class TestProfileBlock:
         # Act
         captured = capsys.readouterr()
         # Assert
-        assert "error_block" in captured.out
+        assert "error_block" in captured.err
 
 
 # ============================================================================
@@ -505,7 +505,7 @@ class TestProfileModule:
         profile_module("math", pattern="sqrt")
         captured = capsys.readouterr()
         # Assert
-        assert "Profiling" in captured.out
+        assert "Profiling" in captured.err
 
     def test_profile_module_wraps_functions_emits_profiling_header(self, capsys):
         """profile_module('os.path', pattern='exists') also prints 'Profiling'."""
@@ -514,7 +514,7 @@ class TestProfileModule:
         profile_module("os.path", pattern="exists")
         captured = capsys.readouterr()
         # Assert
-        assert "Profiling" in captured.out
+        assert "Profiling" in captured.err
 
 
 # ============================================================================
@@ -669,7 +669,7 @@ class TestLineProfiler:
         line_profiler.print_timings("my_func")
         captured = capsys.readouterr()
         # Assert
-        assert "Line timings for my_func" in captured.out
+        assert "Line timings for my_func" in captured.err
 
     def test_print_timings_emits_total_time_line(self, line_profiler, capsys):
         """print_timings emits a 'Total time:' line."""
@@ -684,7 +684,7 @@ class TestLineProfiler:
         line_profiler.print_timings("my_func")
         captured = capsys.readouterr()
         # Assert
-        assert "Total time:" in captured.out
+        assert "Total time:" in captured.err
 
     def test_print_timings_emits_source_code_section(self, line_profiler, capsys):
         """print_timings emits a 'Source code:' section header."""
@@ -699,7 +699,7 @@ class TestLineProfiler:
         line_profiler.print_timings("my_func")
         captured = capsys.readouterr()
         # Assert
-        assert "Source code:" in captured.out
+        assert "Source code:" in captured.err
 
     def test_print_timings_unknown_function_emits_no_timings_message(
         self, line_profiler, capsys
@@ -710,7 +710,7 @@ class TestLineProfiler:
         line_profiler.print_timings("unknown_func")
         captured = capsys.readouterr()
         # Assert
-        assert "No timings for unknown_func" in captured.out
+        assert "No timings for unknown_func" in captured.err
 
 
 # ============================================================================
@@ -753,11 +753,11 @@ class TestTrackMemory:
         with track_memory("test_allocation"):
             list(range(10000))
         captured = capsys.readouterr()
-        if "Memory usage" not in captured.out:
+        if "Memory usage" not in captured.err:
             # psutil not available — verify the context manager exited cleanly.
-            actual = "Memory usage" not in captured.out
+            actual = "Memory usage" not in captured.err
         else:
-            actual = "test_allocation" in captured.out
+            actual = "test_allocation" in captured.err
         # Assert
         assert actual is True
 
@@ -784,8 +784,8 @@ class TestTrackMemory:
             with track_memory("inner"):
                 list(range(1000))
         captured = capsys.readouterr()
-        if "Memory usage" in captured.out:
-            actual = "outer" in captured.out or "inner" in captured.out
+        if "Memory usage" in captured.err:
+            actual = "outer" in captured.err or "inner" in captured.err
         else:
             # psutil not available — clean exit is the assertion.
             actual = True

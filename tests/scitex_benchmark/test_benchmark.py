@@ -840,7 +840,7 @@ class TestBenchmarkSuite:
         suite.run(iterations=2, verbose=True)
         captured = capsys.readouterr()
         # Assert
-        assert "Running benchmark" in captured.out
+        assert "Running benchmark" in captured.err
 
     def test_run_suite_quiet_suppresses_running_benchmark_header(self, capsys):
         # Arrange
@@ -857,7 +857,7 @@ class TestBenchmarkSuite:
         suite.run(iterations=2, verbose=False)
         captured = capsys.readouterr()
         # Assert
-        assert "Running benchmark" not in captured.out
+        assert "Running benchmark" not in captured.err
 
     def test_save_results_creates_file_on_disk(self, saved_suite_csv):
         # Arrange

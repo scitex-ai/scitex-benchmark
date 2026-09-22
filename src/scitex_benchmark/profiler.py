@@ -15,6 +15,10 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
+import scitex_logging as slogging
+
+log = slogging.getLogger(__name__)
+
 
 class FunctionProfiler:
     """Profile individual function calls."""
@@ -81,13 +85,13 @@ class FunctionProfiler:
         if func_name:
             stats = self.get_stats(func_name)
             if stats:
-                print(f"\nProfile for {func_name}:")
-                print(f"Total calls: {self.call_counts[func_name]}")
-                print(f"Total time: {self.total_times[func_name]:.3f}s")
-                print(
+                log.info(f"\nProfile for {func_name}:")
+                log.info(f"Total calls: {self.call_counts[func_name]}")
+                log.info(f"Total time: {self.total_times[func_name]:.3f}s")
+                log.info(
                     f"Avg time per call: {self.total_times[func_name] / self.call_counts[func_name]:.3f}s"
                 )
-                print("\nDetailed stats:")
+                log.info("\nDetailed stats:")
                 stats.sort_stats("cumulative").print_stats(top_n)
         else:
             # Print all functions
@@ -162,13 +166,13 @@ def profile_block(name: str):
         pr.disable()
         end_time = time.time()
 
-        print(f"\nProfile for block '{name}':")
-        print(f"Total time: {end_time - start_time:.3f}s")
+        log.info(f"\nProfile for block '{name}':")
+        log.info(f"Total time: {end_time - start_time:.3f}s")
 
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
         ps.print_stats(10)
-        print(s.getvalue())
+        log.info(s.getvalue())
 
 
 def profile_module(module_name: str, pattern: str = "*") -> Dict[str, Any]:
@@ -204,9 +208,9 @@ def profile_module(module_name: str, pattern: str = "*") -> Dict[str, Any]:
                 setattr(module, name, profiled)
                 wrapped_functions.append(name)
 
-    print(f"Profiling {len(wrapped_functions)} functions in {module_name}")
-    print(f"Wrapped: {', '.join(wrapped_functions)}")
-    print("\nRun your code now. Call get_profile_report() when done.")
+    log.info(f"Profiling {len(wrapped_functions)} functions in {module_name}")
+    log.info(f"Wrapped: {', '.join(wrapped_functions)}")
+    log.info("\nRun your code now. Call get_profile_report() when done.")
 
     return profiler
 
@@ -253,15 +257,15 @@ class LineProfiler:
     def print_timings(self, func_name: str):
         """Print line timings for a function."""
         if func_name not in self.timings:
-            print(f"No timings for {func_name}")
+            log.info(f"No timings for {func_name}")
             return
 
         timing = self.timings[func_name][-1]  # Most recent
-        print(f"\nLine timings for {func_name}:")
-        print(f"Total time: {timing['total_time']:.3f}s")
-        print("\nSource code:")
+        log.info(f"\nLine timings for {func_name}:")
+        log.info(f"Total time: {timing['total_time']:.3f}s")
+        log.info("\nSource code:")
         for i, line in enumerate(timing["source"]):
-            print(f"{i + 1:4d}: {line.rstrip()}")
+            log.info(f"{i + 1:4d}: {line.rstrip()}")
 
 
 # Memory profiling utilities
@@ -293,7 +297,7 @@ def track_memory(name: str):
     finally:
         end_mem = get_memory_usage()
         if start_mem and end_mem:
-            print(f"\nMemory usage for '{name}':")
-            print(f"Start: {start_mem:.1f} MB")
-            print(f"End: {end_mem:.1f} MB")
-            print(f"Delta: {end_mem - start_mem:+.1f} MB")
+            log.info(f"\nMemory usage for '{name}':")
+            log.info(f"Start: {start_mem:.1f} MB")
+            log.info(f"End: {end_mem:.1f} MB")
+            log.info(f"Delta: {end_mem - start_mem:+.1f} MB")
