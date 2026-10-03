@@ -15,6 +15,13 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import Any, Callable, Dict, Optional
 
+import scitex_logging as slogging
+
+log = slogging.getLogger(__name__)
+# These explicit report APIs render user-requested text on stdout. Keep
+# diagnostics on log, and preserve report output regardless of its threshold.
+console = slogging.getPlainConsole(__name__)
+
 
 class FunctionProfiler:
     """Profile individual function calls."""
@@ -81,13 +88,13 @@ class FunctionProfiler:
         if func_name:
             stats = self.get_stats(func_name)
             if stats:
-                print(f"\nProfile for {func_name}:")
-                print(f"Total calls: {self.call_counts[func_name]}")
-                print(f"Total time: {self.total_times[func_name]:.3f}s")
-                print(
+                console.emit(f"\nProfile for {func_name}:")
+                console.emit(f"Total calls: {self.call_counts[func_name]}")
+                console.emit(f"Total time: {self.total_times[func_name]:.3f}s")
+                console.emit(
                     f"Avg time per call: {self.total_times[func_name] / self.call_counts[func_name]:.3f}s"
                 )
-                print("\nDetailed stats:")
+                console.emit("\nDetailed stats:")
                 stats.sort_stats("cumulative").print_stats(top_n)
         else:
             # Print all functions
@@ -102,7 +109,8 @@ class FunctionProfiler:
 
             # Get top time consumers
             s = io.StringIO()
-            stats.sort_stats("cumulative").print_stats(10, s)
+            stats.stream = s
+            stats.sort_stats("cumulative").print_stats(10)
 
             report[func_name] = {
                 "call_count": self.call_counts[func_name],
@@ -162,13 +170,13 @@ def profile_block(name: str):
         pr.disable()
         end_time = time.time()
 
-        print(f"\nProfile for block '{name}':")
-        print(f"Total time: {end_time - start_time:.3f}s")
+        console.emit(f"\nProfile for block '{name}':")
+        console.emit(f"Total time: {end_time - start_time:.3f}s")
 
         s = io.StringIO()
         ps = pstats.Stats(pr, stream=s).sort_stats("cumulative")
         ps.print_stats(10)
-        print(s.getvalue())
+        console.emit(s.getvalue())
 
 
 def profile_module(module_name: str, pattern: str = "*") -> Dict[str, Any]:
@@ -204,9 +212,9 @@ def profile_module(module_name: str, pattern: str = "*") -> Dict[str, Any]:
                 setattr(module, name, profiled)
                 wrapped_functions.append(name)
 
-    print(f"Profiling {len(wrapped_functions)} functions in {module_name}")
-    print(f"Wrapped: {', '.join(wrapped_functions)}")
-    print("\nRun your code now. Call get_profile_report() when done.")
+    console.emit(f"Profiling {len(wrapped_functions)} functions in {module_name}")
+    console.emit(f"Wrapped: {', '.join(wrapped_functions)}")
+    console.emit("\nRun your code now. Call get_profile_report() when done.")
 
     return profiler
 
@@ -253,15 +261,15 @@ class LineProfiler:
     def print_timings(self, func_name: str):
         """Print line timings for a function."""
         if func_name not in self.timings:
-            print(f"No timings for {func_name}")
+            console.emit(f"No timings for {func_name}")
             return
 
         timing = self.timings[func_name][-1]  # Most recent
-        print(f"\nLine timings for {func_name}:")
-        print(f"Total time: {timing['total_time']:.3f}s")
-        print("\nSource code:")
+        console.emit(f"\nLine timings for {func_name}:")
+        console.emit(f"Total time: {timing['total_time']:.3f}s")
+        console.emit("\nSource code:")
         for i, line in enumerate(timing["source"]):
-            print(f"{i + 1:4d}: {line.rstrip()}")
+            console.emit(f"{i + 1:4d}: {line.rstrip()}")
 
 
 # Memory profiling utilities
@@ -293,7 +301,7 @@ def track_memory(name: str):
     finally:
         end_mem = get_memory_usage()
         if start_mem and end_mem:
-            print(f"\nMemory usage for '{name}':")
-            print(f"Start: {start_mem:.1f} MB")
-            print(f"End: {end_mem:.1f} MB")
-            print(f"Delta: {end_mem - start_mem:+.1f} MB")
+            console.emit(f"\nMemory usage for '{name}':")
+            console.emit(f"Start: {start_mem:.1f} MB")
+            console.emit(f"End: {end_mem:.1f} MB")
+            console.emit(f"Delta: {end_mem - start_mem:+.1f} MB")

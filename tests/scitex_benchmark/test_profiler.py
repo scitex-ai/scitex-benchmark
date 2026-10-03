@@ -10,9 +10,11 @@ order, and exactly one assertion. Multi-assertion originals are split into
 one-assertion-per-test siblings that share an Arrange/Act fixture.
 """
 
+import sys
 import time
 
 import pytest
+import scitex_logging as slogging
 
 from scitex_benchmark.profiler import (
     FunctionProfiler,
@@ -791,6 +793,196 @@ class TestTrackMemory:
             actual = True
         # Assert
         assert actual is True
+
+
+@pytest.fixture(params=["WARNING", "ERROR"])
+def profile_log_threshold(request):
+    """Use actual logger configuration, restored after every report case."""
+    original = slogging.get_level()
+    slogging.set_level(request.param)
+    try:
+        yield slogging.get_level()
+    finally:
+        slogging.set_level(original)
+
+
+def report_profile_target(value):
+    """A real small callable for pstats and module-wrapping controls."""
+    return sum(range(value))
+
+
+class TestProfilerOutputContract:
+    """Exercise genuine cProfile/pstats output and its destination."""
+
+    def test_function_profile_keeps_full_stdout_report(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        profiler = FunctionProfiler()
+        target = profiler.profile(report_profile_target)
+        values = [target(5), target(6)]
+        # Act
+        profiler.print_stats("report_profile_target", top_n=20)
+        captured = capsys.readouterr()
+        output = captured.out
+        markers = [
+            "Profile for report_profile_target:", "Total calls: 2", "Total time:",
+            "Avg time per call:", "Detailed stats:", "function calls",
+            "ncalls", "report_profile_target)",
+        ]
+        # Assert
+        assert (
+            all(marker in output for marker in markers),
+            output.find(markers[0]) < output.find(markers[4]) < output.find(markers[5]),
+            captured.err, values, profiler.call_counts["report_profile_target"],
+            slogging.get_level(),
+        ) == (True, True, "", [10, 15], 2, profile_log_threshold)
+
+    def test_returned_profile_text_does_not_leak_stdout(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        profiler = FunctionProfiler()
+        target = profiler.profile(report_profile_target)
+        target(5)
+        target(6)
+        # Act
+        report = profiler.get_report()["report_profile_target"]
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "function calls" in report["profile"],
+            "report_profile_target)" in report["profile"],
+            report["call_count"], report["total_time"] >= 0,
+            report["avg_time"] == report["total_time"] / 2,
+            captured.out, captured.err, slogging.get_level(),
+        ) == (True, True, 2, True, True, "", "", profile_log_threshold)
+
+    def test_block_profile_keeps_header_and_real_pstats_body(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        # Act
+        with profile_block("stdout-contract"):
+            value = report_profile_target(5)
+        captured = capsys.readouterr()
+        output = captured.out
+        # Assert
+        assert (
+            "Profile for block 'stdout-contract':" in output,
+            "Total time:" in output, "function calls" in output,
+            "ncalls" in output, "report_profile_target)" in output,
+            captured.err, value, slogging.get_level(),
+        ) == (True, True, True, True, True, "", 10, profile_log_threshold)
+
+    def test_block_error_preserves_exception_and_stdout_report(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        error = None
+        # Act
+        try:
+            with profile_block("error-contract"):
+                report_profile_target(5)
+                raise ValueError("original callable error")
+        except ValueError as caught:
+            error = caught
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            type(error), str(error), "error-contract" in captured.out,
+            "function calls" in captured.out, captured.err,
+        ) == (ValueError, "original callable error", True, True, "")
+
+    def test_line_profile_keeps_source_report_on_stdout(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        profiler = LineProfiler()
+        target = profiler.profile_lines(report_profile_target)
+        value = target(5)
+        # Act
+        profiler.print_timings("report_profile_target")
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "Line timings for report_profile_target:" in captured.out,
+            "Total time:" in captured.out, "Source code:" in captured.out,
+            "return sum(range(value))" in captured.out,
+            captured.err, value, slogging.get_level(),
+        ) == (True, True, True, True, "", 10, profile_log_threshold)
+
+    def test_missing_line_profile_preserves_stdout_message(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        profiler = LineProfiler()
+        # Act
+        profiler.print_timings("unknown")
+        captured = capsys.readouterr()
+        # Assert
+        assert (captured.out, captured.err) == ("No timings for unknown\n", "")
+
+    def test_memory_report_preserves_optional_dependency_behavior(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        memory_available = get_memory_usage() is not None
+        # Act
+        with track_memory("small-memory-contract"):
+            value = report_profile_target(5)
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "Memory usage for 'small-memory-contract':" in captured.out,
+            "Start:" in captured.out, "End:" in captured.out,
+            "Delta:" in captured.out, captured.err, value,
+            captured.out == "" if not memory_available else True,
+        ) == (
+            memory_available, memory_available, memory_available,
+            memory_available, "", 10, True,
+        )
+
+    def test_module_wrapper_keeps_instructions_and_result(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        module = sys.modules[__name__]
+        original = module.report_profile_target
+        # Act
+        try:
+            profiler = profile_module(__name__, pattern="report_profile_target")
+            value = module.report_profile_target(5)
+        finally:
+            module.report_profile_target = original
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "Profiling 1 functions" in captured.out,
+            "Wrapped: report_profile_target" in captured.out,
+            "Call get_profile_report() when done." in captured.out,
+            captured.err, value, profiler.call_counts["report_profile_target"],
+        ) == (True, True, True, "", 10, 1)
+
+    def test_profiler_report_keeps_diagnostics_and_log_threshold(
+        self, profile_log_threshold, capsys
+    ):
+        # Arrange
+        from scitex_benchmark import profiler as module
+
+        profiler = FunctionProfiler()
+        profiler.profile(report_profile_target)(5)
+        # Act
+        profiler.print_stats("report_profile_target")
+        module.log.error("deliberate profiler diagnostic")
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "Profile for report_profile_target:" in captured.out,
+            "deliberate profiler diagnostic" in captured.err,
+            "deliberate profiler diagnostic" in captured.out,
+            slogging.get_level(),
+        ) == (True, True, False, profile_log_threshold)
 
 
 # ============================================================================

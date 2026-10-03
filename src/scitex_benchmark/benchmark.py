@@ -17,6 +17,12 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+import scitex_logging as slogging
+
+log = slogging.getLogger(__name__)
+# These explicit report APIs render user-requested text on stdout. Keep
+# diagnostics on log, and preserve report output regardless of its threshold.
+console = slogging.getPlainConsole(__name__)
 
 
 @dataclass
@@ -222,7 +228,7 @@ class BenchmarkSuite:
 
         for benchmark in self.benchmarks:
             if verbose:
-                print(f"Running benchmark: {benchmark['name']}")
+                console.emit(f"Running benchmark: {benchmark['name']}")
 
             for size in benchmark["sizes"]:
                 # Generate test data
@@ -242,7 +248,7 @@ class BenchmarkSuite:
                 results.append(result_dict)
 
                 if verbose:
-                    print(f"  {size}: {result}")
+                    console.emit(f"  {size}: {result}")
 
         self.results = pd.DataFrame(results)
         return self.results
@@ -381,7 +387,7 @@ def run_all_benchmarks(
 
     results = {}
     for name, suite in suites.items():
-        print(f"\nRunning {name} benchmarks...")
+        console.emit(f"\nRunning {name} benchmarks...")
         df = suite.run()
 
         # Save results
@@ -403,5 +409,5 @@ def run_all_benchmarks(
     summary_df = pd.DataFrame(summary)
     summary_df.to_csv(output_path / "benchmark_summary.csv", index=False)
 
-    print(f"\nBenchmark results saved to {output_path}")
+    console.emit(f"\nBenchmark results saved to {output_path}")
     return results

@@ -16,6 +16,7 @@ import time
 
 import pandas as pd
 import pytest
+import scitex_logging as slogging
 
 from scitex_benchmark.benchmark import (
     BenchmarkResult,
@@ -975,6 +976,76 @@ class TestBenchmarkModule:
         # Assert
         with ctx:
             benchmark_module("nonexistent_module_12345")
+
+
+@pytest.fixture(params=["WARNING", "ERROR"])
+def report_log_threshold(request):
+    """Exercise the real logging threshold and restore its prior value."""
+    original = slogging.get_level()
+    slogging.set_level(request.param)
+    try:
+        yield slogging.get_level()
+    finally:
+        slogging.set_level(original)
+
+
+class TestBenchmarkOutputContract:
+    """Explicit verbose output is a report, independent of diagnostics."""
+
+    @pytest.mark.parametrize("verbose", [True, False])
+    def test_suite_output_preserves_stdout_and_call_counts(
+        self, report_log_threshold, verbose, capsys
+    ):
+        # Arrange
+        calls = []
+        suite = BenchmarkSuite("output-contract")
+
+        def report_target(value, *, increment):
+            calls.append((value, increment))
+            return value + increment
+
+        suite.add_benchmark(
+            report_target, lambda: ((4,), {"increment": 2}),
+            name="report-target", sizes=["tiny", "small"],
+        )
+        # Act
+        result = suite.run(iterations=2, verbose=verbose)
+        captured = capsys.readouterr()
+        output = captured.out
+        # Assert
+        assert (
+            "Running benchmark: report-target" in output,
+            "  tiny: report_target:" in output,
+            "  small: report_target:" in output,
+            captured.err,
+            calls,
+            result["iterations"].tolist(),
+            result["size"].tolist(),
+            slogging.get_level(),
+        ) == (
+            verbose, verbose, verbose, "", [(4, 2)] * 8,
+            [2, 2], ["tiny", "small"], report_log_threshold,
+        )
+
+    def test_suite_report_keeps_stderr_diagnostics_separate(
+        self, report_log_threshold, capsys
+    ):
+        # Arrange
+        from scitex_benchmark import benchmark as module
+
+        suite = BenchmarkSuite("diagnostic-contract")
+        suite.add_benchmark(lambda: 1, lambda: ((), {}), name="target")
+        # Act
+        suite.run(iterations=1, verbose=True)
+        module.log.error("deliberate diagnostic")
+        captured = capsys.readouterr()
+        # Assert
+        assert (
+            "Running benchmark: target" in captured.out,
+            "deliberate diagnostic" in captured.err,
+            "deliberate diagnostic" in captured.out,
+            slogging.get_level(),
+        ) == (True, True, False, report_log_threshold)
 
 
 # ============================================================================
