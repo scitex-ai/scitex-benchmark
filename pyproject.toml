@@ -24,7 +24,7 @@ dependencies = [
     "psutil",
     "scitex-io",
     "scitex-stats",
-    "scitex-logging",
+    "scitex-logging>=0.2.1",
 ]
 
 [project.optional-dependencies]
